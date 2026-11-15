@@ -163,6 +163,12 @@ def finish_chunked_upload():
                           vp_checksum=request.form.get('vp_checksum'),
                           filesize=file.filesize)
 
+    # Saving this record would replace a permanent one, and the record is
+    # deleted below if these chunks do not add up to that checksum.
+    existing = UploadedFile.objects(checksum=record.checksum).first()
+    if existing and existing.expires == -1:
+        return jsonify(result=True)
+
     record.gen_filename()
     record.save()
 
