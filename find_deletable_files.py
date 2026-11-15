@@ -6,9 +6,10 @@
 #
 # Steps taken:
 #  1) Find mods that are marked as deleted (hidden) and get list of packages
-#     used by each.
+#     used by each. Releases updated in the last RECENT_DAYS days are treated
+#     as visible, since they may be chunked uploads that haven't finished yet.
 #  2) Find mods that are NOT marked as deleted and get list of packages used by
-#     each.
+#     each, plus the master copy of every duplicate and every image in use.
 #  3) Find packages unique to the deleted list.
 #  4) Check for files on disk.
 #  5) Output list of files on disk that should be safe to delete.
@@ -24,10 +25,15 @@
 #  # cat /tmp/deletable_files.txt | while read file; do rm -f $file; done;
 # 
 
-from app.models import ModRelease, UploadedFile
+from app.models import Mod, ModRelease, UploadedFile
+from mongoengine.queryset.visitor import Q
+from datetime import datetime, timedelta
 import sys
 import os
 import stat
+
+RECENT_DAYS = 30
+RECENT_CUTOFF = datetime.utcnow() - timedelta(days=RECENT_DAYS)
 
 if len(sys.argv) < 2:
   print("Find safely deletable files from fsnebula database.\n")
@@ -50,18 +56,27 @@ def human_readable_size(size, decimal_places=2):
 
 
 def find_visible_packages(checksums: set):
-  visible = ModRelease.objects(hidden=False)
+  visible = ModRelease.objects(Q(hidden=False) | Q(last_update=None) |
+    Q(last_update__gte=RECENT_CUTOFF))
   for rel in visible:
     mod = rel.mod
     for pkg in rel.packages:
       for archive in pkg.files:
+        checksums.add(archive.checksum)
         ref = UploadedFile.objects(checksum=archive.checksum).first()
-        if ref and ref.filename and ref.filesize:
-          checksums.add(ref.checksum)
+        # render_mod_list serves the master copy in place of a duplicate
+        if ref and ref.duplicate_of:
+          checksums.add(ref.duplicate_of)
+
+  for rel in ModRelease.objects.only('banner', 'screenshots', 'attachments'):
+    checksums.update([rel.banner] + rel.screenshots + rel.attachments)
+
+  for mod in Mod.objects.only('logo', 'tile'):
+    checksums.update([mod.logo, mod.tile])
 
 
 def find_hidden_packages(checksums: set):
-  hidden = ModRelease.objects(hidden=True)
+  hidden = ModRelease.objects(hidden=True, last_update__lt=RECENT_CUTOFF)
   for rel in hidden:
     mod = rel.mod
     for pkg in rel.packages:
