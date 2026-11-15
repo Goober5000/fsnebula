@@ -583,6 +583,9 @@ def update_team_members():
         abort(404)
 
     for mem in params['members']:
+        if not isinstance(mem['user'], str):
+            abort(400)
+
         if isinstance(mem['role'], str):
             try:
                 mem['role'] = int(mem['role'])
@@ -622,11 +625,17 @@ def update_team_members():
         return jsonify(result=False, reason='no_owners')
 
     new_members = []
+    seen = set()
     for mem in params['members']:
         mem_user = User.objects(username=mem['user']).first()
         if not mem_user:
             return jsonify(result=False, reason='member_not_found', member=mem['user'])
 
+        # Role lookups use a user's first entry; the owner checks above count any.
+        if mem_user.pk in seen:
+            abort(400)
+
+        seen.add(mem_user.pk)
         new_members.append(TeamMember(user=mem_user, role=mem['role']))
 
     mod.team = new_members
