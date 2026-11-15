@@ -13,6 +13,7 @@ from ..models import UploadedFile, ChunkedUpload
 
 
 HEX_RE = re.compile(r'^[0-9a-f]+$')
+SHA256_RE = re.compile(r'^[0-9a-f]{64}$')
 
 
 @app.route('/api/1/upload/check', methods={'POST'})
@@ -139,6 +140,10 @@ def finish_chunked_upload():
     user = verify_token()
     if not user:
         abort(403)
+
+    # The checksum becomes part of the stored file's path.
+    if not SHA256_RE.fullmatch(request.form['checksum']):
+        abort(400)
 
     file = ChunkedUpload.objects(id=request.form['id']).first()
     if not file:
