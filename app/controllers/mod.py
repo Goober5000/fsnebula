@@ -589,6 +589,10 @@ def update_team_members():
             except ValueError:
                 abort(400)
 
+        # A role like 0.5 would pass the owner checks below and be stored as 0.
+        if mem['role'] not in (TEAM_OWNER, TEAM_MANAGER, TEAM_UPLOADER, TEAM_TESTER):
+            abort(400)
+
     role = None
     for mem in mod.team:
         if mem.user == user:
