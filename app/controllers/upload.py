@@ -66,6 +66,11 @@ def upload_file():
     if gen_hash(file.stream, 'sha256') != checksum:
         return jsonify(result=False, reason='checksum')
 
+    # Saving a new record over a permanent one would make it temporary again.
+    existing = UploadedFile.objects(checksum=checksum).first()
+    if existing and existing.expires == -1:
+        return jsonify(result=True)
+
     file.seek(0)
     mime = magic.from_buffer(file.read(1024), mime=True)
     if mime in app.config['MIME_BLACKLIST']:
