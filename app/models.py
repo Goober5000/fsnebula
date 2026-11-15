@@ -143,6 +143,8 @@ class UploadedFile(Document):
     mod = ReferenceField(Mod)
     expires = IntField()
     indexed = BooleanField(default=False)
+    # 'cold' = served only from COLD_MIRRORS; None = served from DL_MIRRORS
+    storage = StringField(max_length=20)
 
     meta = {
         'indexes': [
@@ -171,9 +173,15 @@ class UploadedFile(Document):
         if self.expires != -1:
             raise ValueError()
 
+        if self.storage == 'cold':
+            # Falling back keeps the repo build working if COLD_MIRRORS is missing from the config
+            mirrors = app.config.get('COLD_MIRRORS', app.config['DL_MIRRORS'])
+        else:
+            mirrors = app.config['DL_MIRRORS']
+
         # Strip off the "public/" prefix
         slug = '/' + self.filename[7:]
-        return [prefix + slug for prefix in app.config['DL_MIRRORS']]
+        return [prefix + slug for prefix in mirrors]
 
     def make_permanent(self):
         if self.expires == -1:
