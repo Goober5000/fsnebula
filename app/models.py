@@ -174,8 +174,8 @@ class UploadedFile(Document):
             raise ValueError()
 
         if self.storage == 'cold':
-            # Falling back keeps the repo build working if COLD_MIRRORS is missing from the config
-            mirrors = app.config.get('COLD_MIRRORS', app.config['DL_MIRRORS'])
+            # Falling back keeps the repo build working if COLD_MIRRORS is missing or empty
+            mirrors = app.config.get('COLD_MIRRORS') or app.config['DL_MIRRORS']
         else:
             mirrors = app.config['DL_MIRRORS']
 
