@@ -874,8 +874,23 @@ def private_repo_v2():
         if os.path.isfile(repo_path):
             with open(repo_path, 'r') as stream:
                 content = stream.read()[1:-1]
-                if content != '':
-                    repo.append(content)
+        else:
+            try:
+                rels = json.dumps(render_mod_list([mod], private=True, no_chksum=True), separators=(',',':'))
+            except Exception:
+                app.logger.exception('Failed to render private repo for mod %s!' % mod.mid)
+                continue
+
+            # Other workers may read the file while it's written
+            tmp_path = '%s.%d.tmp' % (repo_path, os.getpid())
+            with open(tmp_path, 'w') as stream:
+                stream.write(rels)
+            os.replace(tmp_path, repo_path)
+
+            content = rels[1:-1]
+
+        if content != '':
+            repo.append(content)
 
     return '{"result":true,"mods":[%s]}' % ','.join(repo)
 
