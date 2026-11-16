@@ -21,7 +21,7 @@ def generate_token(uid):
     return jwt.encode({
         'uid': uid,
         'exp': time.time() + app.config['TOKEN_LIFETIME']
-    }, app.config['JWT_SECRET']).decode('utf8')
+    }, app.config['JWT_SECRET'])
 
 
 def verify_token(token=None):
@@ -29,10 +29,10 @@ def verify_token(token=None):
         token = request.headers.get('X-KN-TOKEN')
 
     try:
-        pay = jwt.decode(token, app.config['JWT_SECRET'])
-    except jwt.ExpiredSignature:
+        pay = jwt.decode(token, app.config['JWT_SECRET'], algorithms=['HS256'])
+    except jwt.ExpiredSignatureError:
         abort(401)
-    except jwt.DecodeError:
+    except jwt.InvalidTokenError:
         abort(403)
 
     user = User.objects(username=pay['uid']).first()
