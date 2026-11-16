@@ -69,11 +69,6 @@ def upload_file():
     if gen_hash(file.stream, 'sha256') != checksum:
         return jsonify(result=False, reason='checksum')
 
-    # Saving a new record over a permanent one would make it temporary again.
-    existing = UploadedFile.objects(checksum=checksum).first()
-    if existing and existing.expires == -1:
-        return jsonify(result=True)
-
     file.seek(0)
     mime = magic.from_buffer(file.read(1024), mime=True)
     if mime in app.config['MIME_BLACKLIST']:
@@ -101,7 +96,9 @@ def upload_file():
             app.logger.warning('UploadedFile %s is a duplicate of %s!' % (record.checksum, duplicate.checksum))
 
     record.gen_filename()
-    record.save()
+    # Saving over a permanent record would make it temporary again.
+    if not record.save_unless_permanent():
+        return jsonify(result=True)
 
     full_path = os.path.join(app.config['FILE_STORAGE'], os.path.normpath(record.filename))
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
