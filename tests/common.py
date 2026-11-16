@@ -1,6 +1,6 @@
 """Shared setup for the tests: runs the app in-process against mongomock (an
 in-memory stand-in for MongoDB) and a throwaway storage folder. Nothing here
-talks to a real server.
+talks to a real server unless FSNEBULA_TEST_MONGO is set (see below).
 
 tests/requirements.txt is the app's requirements plus mongomock. On Windows,
 python-magic also needs python-magic-bin. Each test file is a script:
@@ -12,6 +12,7 @@ import atexit
 import hashlib
 import io
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -35,11 +36,25 @@ def _clean_up():
 
 atexit.register(_clean_up)
 
+# Set FSNEBULA_TEST_MONGO to a mongodb:// address of a throwaway database to
+# run the tests on a real MongoDB. Every test drops the collections it uses,
+# users and mods included, so the database name has to say it is for tests.
+MONGO = os.environ.get('FSNEBULA_TEST_MONGO')
+if MONGO is None:
+    MONGO = 'mongomock://localhost/nebula'
+    print('database: mongomock (in memory)', file=sys.stderr)
+else:
+    from pymongo.uri_parser import parse_uri
+    if not re.search(r'(^|[_-])tests?($|[_-])', parse_uri(MONGO)['database'] or ''):
+        sys.exit('FSNEBULA_TEST_MONGO must name a database like "nebula_test": the word "test" or "tests" set '
+                 'off by "_" or "-". The tests drop its collections.')
+    print('database: the MongoDB named by FSNEBULA_TEST_MONGO', file=sys.stderr)
+
 CFG = os.path.join(ROOT, 'test.cfg')
 with open(CFG, 'w') as stream:
     stream.write(
         "DEBUG = False\n"
-        "MONGO_DB = 'mongomock://localhost/nebula'\n"
+        "MONGO_DB = %r\n"
         "TOKEN_LIFETIME = 3600\n"
         "JWT_SECRET = b'tests-only'\n"
         "ARGON2_ROUNDS = 1\n"
@@ -53,7 +68,7 @@ with open(CFG, 'w') as stream:
         "URLS_FOR = []\n"
         "DISCORD_WEBHOOK = None\nDISCORD_NICK = 'Nebula'\n"
         "IMAGE_SERVER = 'https://img.example.invalid'\n"
-        "DL_MIRRORS = ['https://dl.example.invalid/storage']\n" % UPLOADS
+        "DL_MIRRORS = ['https://dl.example.invalid/storage']\n" % (MONGO, UPLOADS)
     )
 
 os.environ['NEBULA_SETTINGS'] = CFG
